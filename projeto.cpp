@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
+#include <stack>
 
 using namespace std;
 
@@ -15,7 +16,8 @@ typedef struct vertex{
     int pi;
 } vertex;
 
-vector<vertex> vertices;
+vector<vertex> verticesFirstDFS;
+vector<vertex> verticesSecondDFS;
 vector<int> sortedVerticesID;
 vector<vector<int>> SCCs;
 vector<int> SCCsT;
@@ -30,7 +32,8 @@ int num_edges;
 void leinput(){
     int v1,v2;
     scanf("%d%d",&num_vertices,&num_edges);
-    vertices = vector<vertex>(num_vertices+1,{WHITE,0,0,0});
+    verticesFirstDFS = vector<vertex>(num_vertices+1,{WHITE,0,0,0});
+    verticesSecondDFS = vector<vertex>(num_vertices+1,{WHITE,0,0,0});
     graphAdjacent = vector<vector<int>>(num_vertices+1, vector<int>());
     graphAdjacentT = vector<vector<int>>(num_vertices+1, vector<int>());
     for (int i=0;i<num_edges;i++){
@@ -40,62 +43,71 @@ void leinput(){
     }
 }
 
-int DFS_visit(int vertexID,int time,vector<vector<int>> &connections, int dfs1){
-    time +=1;
-    vertices[vertexID].found = time;
-    vertices[vertexID].color = GREY;
-    for (int j : connections[vertexID]){
-        if (vertices[j].color == WHITE){
-            vertices[j].pi = vertexID;
-            time = DFS_visit(j,time,connections, dfs1);
+int DFS_visit(int vertexID,int time,vector<vertex>&vertices,vector<vector<int>> &connections, int dfs1){
+
+    stack<int> stack;
+    stack.push(vertexID);
+    int currentVertex;
+    int addToScc=1;
+    vector<int> currentScc;
+
+    while(!stack.empty()){
+        currentVertex = stack.top();
+
+        if(vertices[currentVertex].color == BLACK){
+            stack.pop();
+            continue;
         }
+
+        if(vertices[currentVertex].color == GREY){
+            vertices[currentVertex].closed = ++time;
+            vertices[currentVertex].color = BLACK;
+            stack.pop();
+            if(dfs1)
+                sortedVerticesID.push_back(currentVertex);
+            else{
+                if (addToScc)
+                    SCCs.push_back(currentScc);
+                addToScc = 0;
+            }
+            continue;
+        }
+
+        if (vertices[currentVertex].color == WHITE){
+            vertices[currentVertex].found = ++time;
+            vertices[currentVertex].color = GREY;
+            if(!dfs1){
+                currentScc.push_back(currentVertex);
+                SCCsT[currentVertex] = SCCs.size();
+            }
+        }
+
+        for (int j : connections[currentVertex]){
+            if (vertices[j].color == WHITE){
+                vertices[j].pi = currentVertex;
+                stack.push(j);
+            }
+        }
+
     }
-    time +=1;
-    if(dfs1)
-        sortedVerticesID.push_back(vertexID);
-    vertices[vertexID].color = BLACK;
-    vertices[vertexID].closed = time;
+
     return time;
 }
 
 void DFS1(){
     int time = 0;
     for (int v=1;v<=num_vertices;v++){
-        if (vertices[v].color == WHITE){
-            time = DFS_visit(v,time,graphAdjacent,1);
+        if (verticesFirstDFS[v].color == WHITE){
+            time = DFS_visit(v,time,verticesFirstDFS,graphAdjacent,1);
         }
     }
 }
 
 void DFS2(){
     int time = 0;
-    for (int v=1;v<=num_vertices;v++){
-        vertices[v].color = WHITE;
-        vertices[v].pi = 0;
-    }
     for (int v=num_vertices-1;v>=0;v--){
-        if (vertices[sortedVerticesID[v]].color == WHITE){
-            time = DFS_visit(sortedVerticesID[v],time,graphAdjacentT,0);
-        }
-    }
-}
-
-void buildScc(){
-    vector<int> checkedVertices = vector<int>(num_vertices+1, 0);
-    SCCsT = vector<int>(num_vertices+1, -1);
-    int SCCcounter = 0;
-    for(int i = 1; i <= num_vertices;i++){
-        if(checkedVertices[i] == 0 && (vertices[i].closed-vertices[i].found)==1){
-            int currentVertex = i;
-            vector<int> currentScc;
-            while(currentVertex != 0){
-                currentScc.push_back(currentVertex);
-                checkedVertices[currentVertex] = 1;
-                SCCsT[currentVertex] = SCCcounter;
-                currentVertex = vertices[currentVertex].pi;
-            }
-            SCCs.push_back(currentScc);
-            SCCcounter++;
+        if (verticesSecondDFS[sortedVerticesID[v]].color == WHITE){
+            time = DFS_visit(sortedVerticesID[v],time,verticesSecondDFS,graphAdjacentT,0);
         }
     }
 }
@@ -149,8 +161,8 @@ int findMaxStep(){
 int main(){
     leinput();
     DFS1();
+    SCCsT = vector<int>(num_vertices+1, -1);
     DFS2();
-    buildScc();
     buildSccConections();
     int res = findMaxStep();
     printf("%d\n", res);
