@@ -19,9 +19,7 @@ typedef struct vertex{
 vector<vertex> verticesFirstDFS;
 vector<vertex> verticesSecondDFS;
 vector<int> sortedVerticesID;
-vector<vector<int>> SCCs;
-vector<int> SCCsT;
-vector<vector<int>> SCCAdjacent;
+vector<int> steps;
 
 vector<vector<int>> graphAdjacent;
 vector<vector<int>> graphAdjacentT;
@@ -43,52 +41,90 @@ void leinput(){
     }
 }
 
-int DFS_visit(int vertexID,int time,vector<vertex>&vertices,vector<vector<int>> &connections, int dfs1){
+int DFS_visit1(int vertexID,int time){
+    stack<int> stack;
+    stack.push(vertexID);
+    int currentVertex;
+
+    while(!stack.empty()){
+        currentVertex = stack.top();
+
+        if(verticesFirstDFS[currentVertex].color == BLACK){
+            stack.pop();
+            continue;
+        }
+
+        if(verticesFirstDFS[currentVertex].color == GREY){
+            verticesFirstDFS[currentVertex].closed = ++time;
+            verticesFirstDFS[currentVertex].color = BLACK;
+            stack.pop();
+            sortedVerticesID.push_back(currentVertex);
+            continue;
+        }
+
+        if (verticesFirstDFS[currentVertex].color == WHITE){
+            verticesFirstDFS[currentVertex].found = ++time;
+            verticesFirstDFS[currentVertex].color = GREY;
+        }
+
+        for (int j : graphAdjacent[currentVertex]){
+            if (verticesFirstDFS[j].color == WHITE){
+                verticesFirstDFS[j].pi = currentVertex;
+                stack.push(j);
+            }
+        }
+    }
+
+    return time;
+}
+
+int DFS_visit2(int vertexID,int time, int *res){
 
     stack<int> stack;
     stack.push(vertexID);
     int currentVertex;
-    int addToScc=1;
+
+    vector<int> currentSccAdjacent = vector<int>(num_vertices+1, 0);
     vector<int> currentScc;
 
     while(!stack.empty()){
         currentVertex = stack.top();
 
-        if(vertices[currentVertex].color == BLACK){
+        if(verticesSecondDFS[currentVertex].color == BLACK){
             stack.pop();
             continue;
         }
 
-        if(vertices[currentVertex].color == GREY){
-            vertices[currentVertex].closed = ++time;
-            vertices[currentVertex].color = BLACK;
-            stack.pop();
-            if(dfs1)
-                sortedVerticesID.push_back(currentVertex);
-            else{
-                if (addToScc)
-                    SCCs.push_back(currentScc);
-                addToScc = 0;
+        if(verticesSecondDFS[currentVertex].color == GREY){
+            verticesSecondDFS[currentVertex].closed = ++time;
+            verticesSecondDFS[currentVertex].color = BLACK;
+
+            for (int j : graphAdjacentT[currentVertex]){
+                if (currentSccAdjacent[j]==0){
+                    *res = max(*res, steps[j]+1);
+                    steps[currentVertex] = *res;
+                }
             }
+            stack.pop();
             continue;
         }
 
-        if (vertices[currentVertex].color == WHITE){
-            vertices[currentVertex].found = ++time;
-            vertices[currentVertex].color = GREY;
-            if(!dfs1){
-                currentScc.push_back(currentVertex);
-                SCCsT[currentVertex] = SCCs.size();
-            }
+        if (verticesSecondDFS[currentVertex].color == WHITE){
+            verticesSecondDFS[currentVertex].found = ++time;
+            verticesSecondDFS[currentVertex].color = GREY;
+            currentScc.push_back(currentVertex);
+            currentSccAdjacent[currentVertex] = 1;
         }
 
-        for (int j : connections[currentVertex]){
-            if (vertices[j].color == WHITE){
-                vertices[j].pi = currentVertex;
+        for (int j : graphAdjacentT[currentVertex]){
+            if (verticesSecondDFS[j].color == WHITE){
+                verticesSecondDFS[j].pi = currentVertex;
                 stack.push(j);
             }
         }
-
+    }
+    for(int j : currentScc){
+        steps[j] = *res;      
     }
 
     return time;
@@ -98,73 +134,29 @@ void DFS1(){
     int time = 0;
     for (int v=1;v<=num_vertices;v++){
         if (verticesFirstDFS[v].color == WHITE){
-            time = DFS_visit(v,time,verticesFirstDFS,graphAdjacent,1);
+            time = DFS_visit1(v,time);
         }
     }
 }
 
-void DFS2(){
+int DFS2(){
     int time = 0;
+    int res=0;
     for (int v=num_vertices-1;v>=0;v--){
         if (verticesSecondDFS[sortedVerticesID[v]].color == WHITE){
-            time = DFS_visit(sortedVerticesID[v],time,verticesSecondDFS,graphAdjacentT,0);
+            int curRes = 0;
+            time = DFS_visit2(sortedVerticesID[v],time,&curRes);
+            res = max(res, curRes);
         }
     }
-}
-
-void buildSccConections(){
-    vector<int> bitmap = vector<int>(SCCs.size(), 0);
-    SCCAdjacent = vector<vector<int>>(SCCs.size(), vector<int>());
-    for(vector<int> SCC : SCCs){
-        for(int v1: SCC){
-            for(int v2: graphAdjacent[v1]){
-                if((SCCsT[v1] != SCCsT[v2]) && (bitmap[SCCsT[v2]]==0)){
-                    SCCAdjacent[SCCsT[v1]].push_back(SCCsT[v2]);
-                    bitmap[SCCsT[v2]]=1;
-                }
-            }
-            for(int v2: graphAdjacent[v1]){
-                bitmap[SCCsT[v2]]=0;
-            }
-        }
-    }
-}
-
-int computeStep(vector<int> steps, int i){
-    if(SCCAdjacent[i].size() == 0)
-        return 0;
-
-    if(steps[i] != -1)
-        return steps[i];
-    
-    int result = 0;
-    for(int adjacent : SCCAdjacent[i]){
-        steps[adjacent] = computeStep(steps, adjacent);
-        result = max(result, steps[adjacent]);
-    }
-    return result+1;
-}
-
-int findMaxStep(){
-
-    vector<int> steps = vector<int>(SCCs.size(), -1);
-    int maxStep = 0;
-
-    for (size_t i = 0; i < steps.size(); i++){
-        steps[i] = computeStep(steps, i);
-        maxStep = max(steps[i], maxStep);
-    }
-    
-    return maxStep;
+    return res;
 }
 
 int main(){
     leinput();
     DFS1();
-    SCCsT = vector<int>(num_vertices+1, -1);
-    DFS2();
-    buildSccConections();
-    int res = findMaxStep();
+    steps = vector<int>(num_vertices+1, 0);
+    int res = DFS2();   
     printf("%d\n", res);
     return 0;
 }
